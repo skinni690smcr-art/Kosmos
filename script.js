@@ -61,18 +61,32 @@ function buildStars() {
   // Sternpartikel im Scheiben-Nebel
   discStars = [];
   for (let i = 0; i < 220; i++) {
-    // Polarkoordinaten, gleichmäßig über Einheitsellipse verteilt
-    const r = Math.sqrt(Math.random()); // Wurzel für gleichmäßige Fläche
+    const r = Math.sqrt(Math.random());
     const a = Math.random() * Math.PI * 2;
     discStars.push({
-      r,          // relative Distanz vom Zentrum (0..1)
-      a,          // Winkel (wird beim Zeichnen + spin addiert)
+      r, a,
       size: Math.random() * 1.6 + 0.3,
       base: Math.random() * 0.6 + 0.3,
       tw: Math.random() * Math.PI * 2,
       tws: Math.random() * 1.2 + 0.3,
     });
   }
+
+  // Sterne entlang des Außenrings
+  ringStars = [];
+  for (let i = 0; i < 300; i++) {
+    ringStars.push({
+      t:      Math.random(),                   // Winkel-Position 0–1
+      spread: (Math.random() - 0.5) * 2,       // radiale Streuung (±1)
+      r:      Math.random() * 1.4 + 0.25,
+      base:   Math.random() * 0.5 + 0.18,
+      tw:     Math.random() * Math.PI * 2,
+      tws:    Math.random() * 0.7 + 0.18,
+    });
+  }
+
+  // Galaxie-Sterne (verteilt über Disk + Ring-Zone)
+  // (ringStars is now ring-only; discStars handles the disc)
 }
 
 function drawBackground(time) {
@@ -137,7 +151,7 @@ const objects = {
     desc: "Kreist treu um das Zentrum – kontinuierlicher Begleiter.",
     color: "#bcd2ff",
     glow: "#7fb4ff",
-    radius: 9,
+    radius: 12,
     x: 0,
     y: 0,
   },
@@ -155,7 +169,7 @@ const objects = {
     desc: "Pendelt um die Scheibe – beweglich und vermittelnd.",
     color: "#8effd6",
     glow: "#34e0a8",
-    radius: 8,
+    radius: 10,
     x: 0,
     y: 0,
   },
@@ -164,7 +178,7 @@ const objects = {
     desc: "Pendelt um die Scheibe – beweglich und vermittelnd.",
     color: "#ff9fc5",
     glow: "#ff5d97",
-    radius: 8,
+    radius: 10,
     x: 0,
     y: 0,
   },
@@ -241,9 +255,10 @@ function animate(time) {
   /* --- Bahn-Parameter (skaliert) --- */
   const orbitB = 70 * scale; // Radius Mond B um A
   const distC = 230 * scale; // Abstand Scheibe C von A (fix unterhalb)
-  const pendRadius = 95 * scale * 1.3; // Umlaufradius D & E um C (+30%)
+  const pendRX = 125 * scale * 1.3;          // Umlaufradius D & E horizontal
+  const pendRY = pendRX * (14 / 72);           // gleiche Abflachung wie die Scheibe
   // Außenring: vertikal gestreckt (elliptisch sichtbar), horizontal enger
-  const ringRY = (distC + pendRadius) * 1.22;  // Höhe: alles umschließen
+  const ringRY = (distC + pendRX) * 1.22;  // Höhe: alles umschließen
   const ringRX = ringRY * 0.62;                 // Breite: deutlich schmäler
   // 90° Drehung: rx und ry beim Aufruf tauschen
   const ringRXr = ringRY;  // rotiert: horizontal = ehemals vertikal
@@ -282,7 +297,7 @@ function animate(time) {
   }
 
   /* ===== Verbindungslinie C (Unterkante) -> Außenring (unten) – Doppellinie ===== */
-  const cDiscRY = 14 * scale * 1.3;
+  const cDiscRY = 14 * scale * 1.69;
   const connStartY = objects.C.y + cDiscRY;
   // Außenring unten: CY + ringRYr (nach 90° Drehung ist die neue ry = ringRYr)
   const connEndY = sceneCY + H * 0.20 + ringRYr;
@@ -311,7 +326,7 @@ function animate(time) {
 
   /* ===== Scheibe C (rotierende ovale Scheibe) ===== */
   const cSpin = time * 0.0006;
-  drawDisc(objects.C.x, objects.C.y, 72 * scale * 1.3, 14 * scale * 1.3, cSpin);
+  drawDisc(objects.C.x, objects.C.y, 72 * scale * 1.69, 14 * scale * 1.69, cSpin);
 
   /* ===== Mond B (Kreisbahn um A) ===== */
   const bAngle = getAngle('B', time, 0.0009);
@@ -324,19 +339,19 @@ function animate(time) {
   const pendSpeed = 0.0010;
 
   const dAngle = getAngle('D', time, pendSpeed);
-  objects.D.x = objects.C.x + Math.cos(dAngle) * pendRadius;
-  objects.D.y = objects.C.y + Math.sin(dAngle) * pendRadius * 0.6;
+  objects.D.x = objects.C.x + Math.cos(dAngle) * pendRX;
+  objects.D.y = objects.C.y + Math.sin(dAngle) * pendRY;
 
   const eAngle = getAngle('E', time, -pendSpeed * 0.75) + Math.PI;
-  objects.E.x = objects.C.x + Math.cos(eAngle) * pendRadius;
-  objects.E.y = objects.C.y + Math.sin(eAngle) * pendRadius * 0.6;
+  objects.E.x = objects.C.x + Math.cos(eAngle) * pendRX;
+  objects.E.y = objects.C.y + Math.sin(eAngle) * pendRY;
 
   // Pendelbahnen andeuten
   drawOrbitEllipse(
     objects.C.x,
     objects.C.y,
-    pendRadius,
-    pendRadius * 0.6,
+    pendRX,
+    pendRY,
     "rgba(52,224,168,0.10)"
   );
 
@@ -489,18 +504,19 @@ function drawDisc(x, y, rx, ry, spin) {
 }
 
 function drawOuterRing(x, y, rx, ry, time) {
-  // Ring ist statisch – nur Partikel twinkeln
+  const spin = time * 0.000032; // langsame Ring-Rotation
+
   ctx.save();
   ctx.translate(x, y);
 
-  // --- äußerste Halo-Schichten ---
+  /* ── Diffuse Halo-Schichten (mehrfach gestapelt) ── */
   const halos = [
-    { w: 160, a: 0.018, col: "80,60,160" },
-    { w: 100, a: 0.035, col: "100,75,190" },
-    { w: 55,  a: 0.07,  col: "130,100,220" },
-    { w: 26,  a: 0.16,  col: "165,140,255" },
-    { w: 10,  a: 0.32,  col: "195,175,255" },
-    { w: 3,   a: 0.65,  col: "225,215,255" },
+    { w: 200, a: 0.013, col: "68,48,148" },
+    { w: 110, a: 0.028, col: "88,65,178" },
+    { w: 60,  a: 0.060, col: "116,90,215" },
+    { w: 30,  a: 0.130, col: "150,125,248" },
+    { w: 13,  a: 0.280, col: "185,168,255" },
+    { w: 5,   a: 0.580, col: "220,213,255" },
   ];
   for (const h of halos) {
     ctx.lineWidth = h.w;
@@ -510,37 +526,58 @@ function drawOuterRing(x, y, rx, ry, time) {
     ctx.stroke();
   }
 
-  // --- heller Kern-Streifen (helle Spiralarm-Andeutung) ---
-  ctx.lineWidth = 1.5;
-  const coreGrad = ctx.createLinearGradient(-rx, 0, rx, 0);
-  coreGrad.addColorStop(0,   "rgba(180,160,255,0.08)");
-  coreGrad.addColorStop(0.3, "rgba(210,200,255,0.70)");
-  coreGrad.addColorStop(0.5, "rgba(240,235,255,0.95)");
-  coreGrad.addColorStop(0.7, "rgba(210,200,255,0.70)");
-  coreGrad.addColorStop(1,   "rgba(180,160,255,0.08)");
-  ctx.strokeStyle = coreGrad;
+  /* ── Fließende Nebel-Wolken entlang des Rings ── */
+  const NUM_PATCHES = 18;
+  for (let i = 0; i < NUM_PATCHES; i++) {
+    const frac = (i / NUM_PATCHES) + spin * 0.18;
+    const angle = frac * Math.PI * 2;
+    const px = rx * Math.cos(angle);
+    const py = ry * Math.sin(angle);
+
+    const patchR  = rx * 0.11 + Math.sin(i * 2.5) * rx * 0.055;
+    const pulse   = 0.5 + 0.5 * Math.sin(time * 0.00045 * (1 + i * 0.15) + i);
+    const alpha   = (0.07 + pulse * 0.11);
+
+    // Farbpalette: blau → lila → orange/rot → türkis
+    const phase = (i / NUM_PATCHES);
+    const col = phase < 0.22 ? "115,95,255"
+               : phase < 0.44 ? "185,115,255"
+               : phase < 0.62 ? "255,135,95"
+               : phase < 0.80 ? "215,85,175"
+               :                "90,165,255";
+
+    const g = ctx.createRadialGradient(px, py, 0, px, py, patchR);
+    g.addColorStop(0, `rgba(${col},${Math.min(1, alpha * 2.2)})`);
+    g.addColorStop(0.5, `rgba(${col},${alpha})`);
+    g.addColorStop(1, `rgba(${col},0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(px, py, patchR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* ── Heller Ring-Kern (Leucht-Linie) ── */
+  ctx.lineWidth = 1.6;
+  const spine = ctx.createLinearGradient(-rx, 0, rx, 0);
+  spine.addColorStop(0,    "rgba(172,155,255,0.07)");
+  spine.addColorStop(0.26, "rgba(208,196,255,0.66)");
+  spine.addColorStop(0.5,  "rgba(244,240,255,0.96)");
+  spine.addColorStop(0.74, "rgba(208,196,255,0.66)");
+  spine.addColorStop(1,    "rgba(172,155,255,0.07)");
+  ctx.strokeStyle = spine;
   ctx.beginPath();
   ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
   ctx.stroke();
 
-  // --- Galaxie-Kern-Glow ---
-  const coreHalo = ctx.createRadialGradient(0, 0, 0, 0, 0, rx * 0.18);
-  coreHalo.addColorStop(0, "rgba(200,190,255,0.25)");
-  coreHalo.addColorStop(1, "rgba(200,190,255,0)");
-  ctx.fillStyle = coreHalo;
-  ctx.beginPath();
-  ctx.ellipse(0, 0, rx * 0.18, ry * 0.6, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // --- Sternpartikel ---
+  /* ── Sterne fließen entlang des Rings ── */
   for (const s of ringStars) {
-    const a = s.t * Math.PI * 2;
-    const rs = 1 + s.spread;
-    const px = rx * rs * Math.cos(a);
-    const py = ry * rs * Math.sin(a);
-    const alpha = (s.base + Math.sin(time * 0.001 * s.tws + s.tw) * 0.3) * 0.85;
+    const angle = (s.t + spin * 0.55) * Math.PI * 2;
+    const radScale = 1 + s.spread * 0.09; // leichte radiale Streuung
+    const px = rx * radScale * Math.cos(angle);
+    const py = ry * radScale * Math.sin(angle);
+    const alpha = s.base + Math.sin(time * 0.001 * s.tws + s.tw) * 0.30;
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
-    ctx.fillStyle = "#e8ecff";
+    ctx.fillStyle = "#eae5ff";
     ctx.beginPath();
     ctx.arc(px, py, s.r, 0, Math.PI * 2);
     ctx.fill();
@@ -564,7 +601,7 @@ function updateTooltip() {
   let hitKey = null;
   for (const key of ["A", "B", "C", "D", "E"]) {
     const o = objects[key];
-    const hitR = key === "C" ? 64 * scale * 1.3 : o.radius + 10;
+    const hitR = key === "C" ? 64 * scale * 1.69 : o.radius + 10;
     const dx = mouse.x - o.x;
     const dy = mouse.y - o.y;
     if (dx * dx + dy * dy <= hitR * hitR) {
